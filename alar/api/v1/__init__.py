@@ -1,6 +1,7 @@
 from functools import wraps
 from multiprocessing.dummy import Pool
 from itertools import chain
+from typing import Callable, Any, Mapping, List
 
 from flask import Blueprint, request, jsonify, current_app, g, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -16,7 +17,7 @@ from alar.models import User, UserRight
 bp = Blueprint('api_v1', __name__, url_prefix='/api/v1/')
 
 
-def rights_required(rights):
+def rights_required(rights: int) -> Callable[[...], Any]:
     """Configurable decorator for access control
 
     :param rights: Rights integer value
@@ -35,7 +36,7 @@ def rights_required(rights):
 
 
 @bp.before_request
-def before_request():
+def before_request() -> None:
     """Pull current user from DB"""
     try:
         signer = URLSafeTimedSerializer(current_app.config['SECRET_KEY'], current_app.config['TOKEN_SALT'])
@@ -47,14 +48,19 @@ def before_request():
 
 @bp.errorhandler(Exception)
 @bp.errorhandler(500)
-def error_500(_):
+def error_500(_) -> Any:
     """Internal Server Error handler"""
     current_app.logger.exception('internal server error')
     db.session.rollback()
     return jsonify({'error': 'internal server error'}), 500
 
 
-def user_dump(target_user):
+def user_dump(target_user) -> Mapping[str, Any]:
+    """Dump user to dict
+
+    :param target_user: User for dump
+    :return: User dict
+    """
     return {
         'id': target_user.user_id,
         'login': target_user.login,
@@ -65,7 +71,15 @@ def user_dump(target_user):
     }
 
 
-def rights_from_flags(can_view, can_create, can_update, can_delete):
+def rights_from_flags(can_view: bool, can_create: bool, can_update: bool, can_delete: bool) -> int:
+    """Make flag number by logical flags
+
+    :param can_view: User can view?
+    :param can_create: User can create?
+    :param can_update: User can update?
+    :param can_delete: User can delete?
+    :return: Flag number
+    """
     rights = 0
     if can_view:
         rights |= UserRight.VIEW.value
@@ -79,7 +93,7 @@ def rights_from_flags(can_view, can_create, can_update, can_delete):
 
 
 @bp.route('login', methods=('POST', ))
-def login():
+def login() -> Any:
     """Login view"""
     user_login = request.json.get('login', '')
     user_password = request.json.get('password', '')
@@ -95,7 +109,7 @@ def login():
 
 @bp.route('user', methods=('GET', ))
 @rights_required(UserRight.VIEW.value)
-def user_list():
+def user_list() -> Any:
     """User List View"""
     try:
         offset = request.args['offset']
@@ -107,7 +121,7 @@ def user_list():
 
 @bp.route('user/<int:user_id>', methods=('DELETE', ))
 @rights_required(UserRight.DELETE.value)
-def user_delete(user_id):
+def user_delete(user_id: int) -> Any:
     """Delete user by user_id"""
     if user_id == g.user.user_id:
         return jsonify({'error': 'can not delete self'}), 400
@@ -120,7 +134,7 @@ def user_delete(user_id):
 
 @bp.route('user', methods=('POST', ))
 @rights_required(UserRight.CREATE.value)
-def user_create():
+def user_create() -> Any:
     """Create new user"""
     try:
         new_user = User()
@@ -140,7 +154,7 @@ def user_create():
 
 @bp.route('user/<int:user_id>', methods=('GET', ))
 @rights_required(UserRight.VIEW.value)
-def user_view(user_id):
+def user_view(user_id: int) -> Any:
     """View single user"""
     try:
         return jsonify(user_dump(User.query.filter_by(user_id=user_id).one()))
@@ -150,7 +164,7 @@ def user_view(user_id):
 
 @bp.route('user/<int:user_id>', methods=('PUT', ))
 @rights_required(UserRight.UPDATE.value)
-def user_update(user_id):
+def user_update(user_id: int) -> Any:
     """Update exists user"""
     try:
         exists_user = User.query.filter_by(user_id=user_id).one()
@@ -171,9 +185,9 @@ def user_update(user_id):
 
 
 @bp.route('data', methods=('GET', ))
-def data():
+def data() -> Any:
     """Async request data from many sources"""
-    def request_data(uri):
+    def request_data(uri: str) -> List[Mapping[str, Any]]:
         try:
             response = requests.get(uri, timeout=2)
             response.raise_for_status()
