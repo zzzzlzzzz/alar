@@ -17,7 +17,7 @@ from alar.models import User, UserRight
 bp = Blueprint('api_v1', __name__, url_prefix='/api/v1/')
 
 
-def rights_required(rights: int) -> Callable[[...], Any]:
+def rights_required(rights: int):
     """Configurable decorator for access control
 
     :param rights: Rights integer value
