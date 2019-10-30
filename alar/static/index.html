@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User App</title>
+</head>
+<body>
+    <div id="login_page" style="display: none;">
+        <form id="login_form">
+            <label for="login">Login: </label>
+            <input type="text" id="login">
+            <br/>
+            <label for="password">Password: </label>
+            <input type="password" id="password">
+            <br/>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+    <div id="list_user_page" style="display: none">
+    </div>
+    <div id="create_user_page" style="display: none">
+        <form id="create_form">
+            <label for="login_create">Login:</label>
+            <input type="text" id="login_create">
+            <br/>
+            <label for="password_create">Password:</label>
+            <input type="text" id="password_create">
+            <br/>
+            <label><input type="checkbox" id="can_view_create">View</label>
+            <label><input type="checkbox" id="can_create_create">Create</label>
+            <label><input type="checkbox" id="can_update_create">Update</label>
+            <label><input type="checkbox" id="can_delete_create">Delete</label>
+            <br/>
+            <button type="submit">Create</button>
+        </form>
+    </div>
+    <div id="update_user_page" style="display: none">
+        <form id="update_form">
+            <label for="login_update">Login:</label>
+            <input type="text" id="login_update">
+            <br/>
+            <label for="password_update">Password:</label>
+            <input type="text" id="password_update">
+            <br/>
+            <label><input type="checkbox" id="can_view_update">View</label>
+            <label><input type="checkbox" id="can_create_update">Create</label>
+            <label><input type="checkbox" id="can_update_update">Update</label>
+            <label><input type="checkbox" id="can_delete_update">Delete</label>
+            <br/>
+            <button type="submit">Update</button>
+            <input type="hidden" id="user_id">
+        </form>
+    </div>
+    <script>
+        const backend_uri = 'http://127.0.0.1:5000/api/v1/';
+        let user_token = '';
+        let can_view = false;
+        let can_create = false;
+        let can_update = false;
+        let can_delete = false;
+
+        function delete_user(user_id) {
+            fetch(backend_uri + 'user/' + user_id, {
+                method: 'DELETE',
+                headers: {
+                    'X-Token-Auth': user_token,
+                }
+            }).then(function () {
+                show_list_user_page();
+            });
+        }
+
+        function update_user(user_id) {
+            fetch(backend_uri + 'user/' + user_id, {
+                method: 'GET',
+                headers: {
+                    'X-Token-Auth': user_token,
+                }
+            }).then(function (answer) {
+                answer.json().then(function (data) {
+                    if(data['error'] === 'invalid token' || data['error'] === 'invalid rights') {
+                            alert('Invalid token or rights');
+                            show_login_page();
+                    } else {
+                        let update_form = document.getElementById('update_form');
+                        update_form.elements['login_update'].value = data['login'];
+                        update_form.elements['password_update'].value = '';
+                        update_form.elements['can_view_update'].checked = data['can_view'];
+                        update_form.elements['can_create_update'].checked = data['can_create'];
+                        update_form.elements['can_update_update'].checked = data['can_update'];
+                        update_form.elements['can_delete_update'].checked = data['can_delete'];
+                        update_form.elements['user_id'].value = user_id;
+                        document.getElementById('login_page').style.display = 'none';
+                        document.getElementById('list_user_page').style.display = 'none';
+                        document.getElementById('create_user_page').style.display = 'none';
+                        document.getElementById('update_user_page').style.display = 'block';
+                    }
+                });
+            });
+        }
+
+        function show_create_user_page() {
+            document.getElementById('login_page').style.display = 'none';
+            document.getElementById('list_user_page').style.display = 'none';
+            document.getElementById('create_user_page').style.display = 'block';
+            document.getElementById('update_user_page').style.display = 'none';
+        }
+
+        function show_list_user_page() {
+            document.getElementById('login_page').style.display = 'none';
+            document.getElementById('list_user_page').style.display = 'block';
+            document.getElementById('list_user_page').innerHTML = '';
+            document.getElementById('create_user_page').style.display = 'none';
+            document.getElementById('update_user_page').style.display = 'none';
+
+            function load_all_user(offset=0, limit=100) {
+                fetch(backend_uri + 'user?offset=' + offset + '&limit=' + limit, {
+                    method: 'GET',
+                    headers: {
+                        'X-Token-Auth': user_token,
+                    }
+                }).then(function (answer) {
+                    answer.json().then(function (data) {
+                        if(data['error'] === 'invalid token' || data['error'] === 'invalid rights') {
+                            alert('Invalid token or rights');
+                            show_login_page();
+                        } else {
+                            data.forEach(function (item, index) {
+                                let div = document.createElement('div');
+                                div.innerHTML = item['id'] + ' ' + item['login'] + ' ' +
+                                    (item['can_view'] ? '+View' : '-View') + ' ' +
+                                    (item['can_create'] ? '+Create' : '-Create') + ' ' +
+                                    (item['can_update'] ? '+Update' : '-Update') + ' ' +
+                                    (item['can_delete'] ? '+Delete' : '-Delete');
+                                if(can_delete) {
+                                    div.innerHTML += '<button onclick="delete_user(' + item['id'] + ');">Delete</button>';
+                                }
+                                if(can_update) {
+                                    div.innerHTML += '<button onclick="update_user(' + item['id'] + ');">Update</button>';
+                                }
+                                div.innerHTML += '<br/>';
+                                document.getElementById('list_user_page').appendChild(div);
+                            });
+                            if(data.length > 0) {
+                                load_all_user(offset + limit, limit);
+                            }
+                        }
+                    });
+                });
+            }
+            if(can_create) {
+                let create_button = document.createElement('button');
+                create_button.innerHTML = 'New User';
+                create_button.onclick = show_create_user_page;
+                document.getElementById('list_user_page').appendChild(create_button)
+            }
+            if(can_view) {
+                load_all_user();
+            }
+        }
+
+        function login_submit(e) {
+            e.preventDefault();
+            const login_form = document.getElementById('login_form');
+            const login = login_form.elements['login'].value;
+            const password = login_form.elements['password'].value;
+            fetch(backend_uri + 'login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json;charset=utf-8',
+                    },
+                    body: JSON.stringify({
+                        'login': login,
+                        'password': password,
+                    }),
+                }).then(function (answer) {
+                    answer.json().then(function (data) {
+                        if(data['error']) {
+                            alert(data['error']);
+                        } else {
+                            user_token = data['token'];
+                            can_view = data['can_view'];
+                            can_create = data['can_create'];
+                            can_update = data['can_update'];
+                            can_delete = data['can_delete'];
+                            show_list_user_page();
+                        }
+                    });
+                });
+        }
+        document.getElementById('login_form').addEventListener('submit', login_submit, false);
+
+        function create_submit(e) {
+            e.preventDefault();
+            const create_form = document.getElementById('create_form');
+            const login_create = create_form.elements['login_create'].value;
+            const password_create = create_form.elements['password_create'].value;
+            const can_view_create = create_form.elements['can_view_create'].checked;
+            const can_create_create = create_form.elements['can_create_create'].checked;
+            const can_update_create = create_form.elements['can_update_create'].checked;
+            const can_delete_create = create_form.elements['can_delete_create'].checked;
+            fetch(backend_uri + 'user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json;charset=utf-8',
+                    'X-Token-Auth': user_token,
+                },
+                body: JSON.stringify({
+                   'login':  login_create,
+                    'password': password_create,
+                    'can_view': can_view_create,
+                    'can_create': can_create_create,
+                    'can_update': can_update_create,
+                    'can_delete': can_delete_create,
+                }),
+            }).then(function () {
+                show_list_user_page();
+            });
+        }
+        document.getElementById('create_form').addEventListener('submit', create_submit, false);
+
+        function update_submit(e) {
+            e.preventDefault();
+            const update_form = document.getElementById('update_form');
+            const login_update = update_form.elements['login_update'].value;
+            const password_update = update_form.elements['password_update'].value;
+            const can_view_update = update_form.elements['can_view_update'].checked;
+            const can_create_update = update_form.elements['can_create_update'].checked;
+            const can_update_update = update_form.elements['can_update_update'].checked;
+            const can_delete_update = update_form.elements['can_delete_update'].checked;
+            const user_id = update_form.elements['user_id'].value;
+            fetch(backend_uri + 'user/' + user_id, {
+               method: 'PUT',
+                headers: {
+                   'Content-Type': 'application/json;charset=utf-8',
+                    'X-Token-Auth': user_token,
+                },
+                body: JSON.stringify({
+                    'login': login_update,
+                    'password': password_update,
+                    'can_view': can_view_update,
+                    'can_create': can_create_update,
+                    'can_update': can_update_update,
+                    'can_delete': can_delete_update,
+                }),
+            }).then(function () {
+                show_list_user_page();
+            });
+        }
+        document.getElementById('update_form').addEventListener('submit', update_submit, false);
+
+        function show_login_page() {
+            document.getElementById('login_page').style.display = 'block';
+            document.getElementById('list_user_page').style.display = 'none';
+            document.getElementById('create_user_page').style.display = 'none';
+            document.getElementById('update_user_page').style.display = 'none';
+        }
+        show_login_page();
+    </script>
+</body>
+</html>
